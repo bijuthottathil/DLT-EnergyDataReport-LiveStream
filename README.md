@@ -1,4 +1,17 @@
-# DLT-PowerDataReport
+# Databricks Delta Live Tables (DLT) pipeline designed for an energy company to manage and report on power usage data using the Medallion Architecture (Bronze → Silver → Gold).
+<img width="828" height="549" alt="image" src="https://github.com/user-attachments/assets/b369c117-dcc9-4160-9dc6-0852d208aa72" />
+
+1. Create external locations in S3 buckets
+   <img width="1887" height="488" alt="image" src="https://github.com/user-attachments/assets/b0d0f2e8-2aec-44a9-9cf4-ec5b406b7e3a" />
+
+2. Created power-catalog and 3 Schema's manually  <img width="1885" height="660" alt="image" src="https://github.com/user-attachments/assets/7b10a1aa-521f-46ff-a4d7-d008792507af" />
+
+3. Create ETL Pipe Line from here <img width="1889" height="568" alt="image" src="https://github.com/user-attachments/assets/43624973-b2ba-4738-a904-57cb834e7c5b" />  
+
+4. <img width="1714" height="925" alt="image" src="https://github.com/user-attachments/assets/c2e7e6aa-ec5a-40b1-80fd-5df7f0bbcaf7" />
+
+
+
 
 <img width="1880" height="781" alt="image" src="https://github.com/user-attachments/assets/b7399c3c-a7ca-4d94-b6f7-d8ecbb5a8479" />
 
