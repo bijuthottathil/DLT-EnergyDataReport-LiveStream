@@ -10,7 +10,19 @@
 
 4. <img width="1714" height="925" alt="image" src="https://github.com/user-attachments/assets/c2e7e6aa-ec5a-40b1-80fd-5df7f0bbcaf7" />
 
+5.  Already I have created a project. Once it is created , you will get transformations folder. You can create new files (py or sql) for DLT pipeline. I selecte Python option here  
+   <img width="1899" height="718" alt="image" src="https://github.com/user-attachments/assets/f61efb5e-fafa-4527-981d-343ee29acf0d" />
 
+6. I have provided my code in git repository, same code is given below
+   
+Important Note:- I am using a simulator to generate Json files with Power Meter readings . This python simulator will generated records in an external volume created in S3 bucket
+
+7. <img width="1896" height="844" alt="image" src="https://github.com/user-attachments/assets/4c0a0b1f-9be3-40ec-b63d-791200ded483" />
+
+8. I kept 2 csv files to load Customers details and Electricity Plan details in csv folder
+   <img width="1890" height="799" alt="image" src="https://github.com/user-attachments/assets/5e1d403c-d9d1-4639-9ac7-66f27885de03" />
+
+9. Json file content will look like this   <img width="1883" height="472" alt="image" src="https://github.com/user-attachments/assets/7e5500c9-5be1-4478-9a28-fb0c8174db9f" />
 
 
 <img width="1880" height="781" alt="image" src="https://github.com/user-attachments/assets/b7399c3c-a7ca-4d94-b6f7-d8ecbb5a8479" />
