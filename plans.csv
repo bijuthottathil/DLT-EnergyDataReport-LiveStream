@@ -1,0 +1,6 @@
+plan_id,plan_name,rate_per_kwh,effective_start_date,effective_end_date
+PLAN001,Fixed Rate 12,0.1418,2024-09-26,2025-09-26
+PLAN002,Variable Rate 6,0.1603,2024-10-28,2025-10-28
+PLAN003,Green Energy 24,0.2267,2025-05-31,2026-05-31
+PLAN004,Time-of-Use,0.2032,2025-07-02,2026-07-02
+PLAN005,Weekend Special,0.2211,2024-09-10,2025-09-10
