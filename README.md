@@ -25,7 +25,10 @@ Important Note:- I am using a simulator to generate Json files with Power Meter 
 9. Json file content will look like this   <img width="1883" height="472" alt="image" src="https://github.com/user-attachments/assets/7e5500c9-5be1-4478-9a28-fb0c8174db9f" />
 
 
-<img width="1880" height="781" alt="image" src="https://github.com/user-attachments/assets/b7399c3c-a7ca-4d94-b6f7-d8ecbb5a8479" />
+
+# Now I am going to connect to Aggregated table in Databricks to PowerBI desktop to create a report
+
+ <img width="1880" height="781" alt="image" src="https://github.com/user-attachments/assets/b7399c3c-a7ca-4d94-b6f7-d8ecbb5a8479" />
 
   <img width="1651" height="864" alt="image" src="https://github.com/user-attachments/assets/1df121f8-9d9b-4357-a5cd-12a297682cc9" />  
 
@@ -42,7 +45,10 @@ Important Note:- I am using a simulator to generate Json files with Power Meter 
 
 Just for testing, I pulled aggregation data in canvas
 
-<img width="1897" height="912" alt="image" src="https://github.com/user-attachments/assets/977327a5-09c4-44fe-b55b-bb1cfe19e1d4" />
+<img width="1332" height="761" alt="image" src="https://github.com/user-attachments/assets/2d77e676-cc6e-4790-9121-ad93217d7cf5" />
+
+I am still working on the PowerBI report. Final version will be updated in 2 days
+
 
 
   
