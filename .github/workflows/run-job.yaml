@@ -1,0 +1,27 @@
+name: Trigger Databricks DLT Pipeline
+
+on:
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  run-dlt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Databricks CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
+          databricks --version
+
+      - name: Configure Databricks CLI
+        run: |
+          databricks configure --host "$DATABRICKS_HOST" --token "$DATABRICKS_TOKEN" --quiet
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+      - name: Start DLT Pipeline
+        run: |
+          databricks pipelines start --pipeline-id "${{ secrets.DLT_PIPELINE_ID }}"
