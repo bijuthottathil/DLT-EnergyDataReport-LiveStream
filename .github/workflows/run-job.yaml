@@ -1,43 +1,210 @@
-name: Trigger Databricks DLT Pipeline
+name: Run Databricks DLT Pipeline
 
 on:
   workflow_dispatch:
+    inputs:
+      pipeline_id:
+        description: "DLT Pipeline ID (overrides secret if provided)"
+        type: string
+        required: false
+      stop_active_first:
+        description: "If an update is running, stop it before starting a new one"
+        type: choice
+        options: [ "false", "true" ]
+        default: "false"
+        required: true
+      timeout_mins:
+        description: "Max minutes to wait for update to finish"
+        type: number
+        default: 90
+        required: true
+      poll_secs:
+        description: "Polling interval in seconds"
+        type: number
+        default: 30
+        required: true
+
+concurrency:
+  group: run-dlt-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   run-dlt:
     runs-on: ubuntu-latest
+    env:
+      # Required secrets:
+      #   DATABRICKS_HOST   -> e.g. https://adb-xxxxxxxxx.xx.azuredatabricks.net
+      #   DATABRICKS_TOKEN  -> PAT or SPN token with pipeline permissions
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      # Optional: store your default pipeline id as a secret; can be overridden by workflow input.
+      DEFAULT_PIPELINE_ID: ${{ secrets.DLT_PIPELINE_ID }}
+      INPUT_PIPELINE_ID: ${{ github.event.inputs.pipeline_id }}
+      STOP_ACTIVE_FIRST: ${{ github.event.inputs.stop_active_first }}
+      TIMEOUT_MINS: ${{ github.event.inputs.timeout_mins }}
+      POLL_SECS: ${{ github.event.inputs.poll_secs }}
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Databricks CLI
+      - name: Validate inputs & secrets
         run: |
+          set -euo pipefail
+          if [ -z "${DATABRICKS_HOST:-}" ] || [ -z "${DATABRICKS_TOKEN:-}" ]; then
+            echo "DATABRICKS_HOST and DATABRICKS_TOKEN must be set as repo/org secrets." >&2
+            exit 1
+          fi
+          PIPELINE_ID="${INPUT_PIPELINE_ID:-}"
+          if [ -z "$PIPELINE_ID" ] || [ "$PIPELINE_ID" = "null" ]; then
+            PIPELINE_ID="${DEFAULT_PIPELINE_ID:-}"
+          fi
+          if [ -z "$PIPELINE_ID" ] || [ "$PIPELINE_ID" = "null" ]; then
+            echo "Provide pipeline_id via workflow input or set DLT_PIPELINE_ID secret." >&2
+            exit 1
+          fi
+          echo "PIPELINE_ID=$PIPELINE_ID" >> "$GITHUB_ENV"
+
+      - name: Install prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update -y
+          sudo apt-get install -y jq
           curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
           databricks version
 
-      - name: Start DLT Pipeline (CLI v1.x)
-        env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      - name: Run / Wait for DLT update
+        id: run_wait
         run: |
-          databricks pipelines start-update "${{ secrets.DLT_PIPELINE_ID }}"
-      - name: Wait for DLT Pipeline to Finish
-        env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-        run: |
-          PIPELINE_ID="${{ secrets.DLT_PIPELINE_ID }}"
-          UPDATE_ID=$(databricks pipelines start-update "$PIPELINE_ID" --output json | jq -r '.update_id')
-          echo "Started Update ID: $UPDATE_ID"
+          set -euo pipefail
 
-          STATUS="RUNNING"
-          while [ "$STATUS" == "RUNNING" ] || [ "$STATUS" == "PENDING" ]; do
-            sleep 60
-            STATUS=$(databricks pipelines get-update "$PIPELINE_ID" "$UPDATE_ID" --output json | jq -r '.update.state')
-            echo "Current status: $STATUS"
-          done
+          PIPELINE_ID="${PIPELINE_ID}"
+          POLL_SECS="${POLL_SECS:-30}"
+          TIMEOUT_MINS="${TIMEOUT_MINS:-90}"
 
-          if [ "$STATUS" != "COMPLETED" ]; then
-            echo "Pipeline failed with status: $STATUS"
-            exit 1
+          echo "Using pipeline: $PIPELINE_ID"
+          echo "stop_active_first=${STOP_ACTIVE_FIRST}"
+          echo "timeout_mins=${TIMEOUT_MINS}, poll_secs=${POLL_SECS}"
+
+          list_active_update_id () {
+            databricks pipelines list-updates "$PIPELINE_ID" --output json \
+              | jq -r '.updates[]? | select(.state=="RUNNING" or .state=="PENDING" or .state=="QUEUED" or .state=="INITIALIZING" or .state=="CREATED") | .update_id' \
+              | head -n 1
+          }
+
+          wait_for_update () {
+            local update_id="$1"
+            local end=$(( $(date +%s) + TIMEOUT_MINS*60 ))
+            echo "Waiting for update ${update_id} (timeout ${TIMEOUT_MINS} mins; poll ${POLL_SECS}s)..."
+
+            while true; do
+              # Handle transient CLI failures without crashing the job immediately
+              set +e
+              RESP=$(databricks pipelines get-update "$PIPELINE_ID" "$update_id" --output json 2>/dev/null)
+              RC=$?
+              set -e
+              if [ $RC -ne 0 ] || [ -z "$RESP" ]; then
+                echo "Could not fetch update state yet; retrying..."
+                sleep "$POLL_SECS"
+                continue
+              fi
+
+              STATE=$(echo "$RESP" | jq -r '.update.state')
+              echo "State: $STATE"
+
+              case "$STATE" in
+                COMPLETED)
+                  echo "✅ Update completed."
+                  return 0
+                  ;;
+                FAILED|CANCELED|CANCELLED)
+                  echo "❌ Update ended in $STATE."
+                  return 1
+                  ;;
+                PENDING|RUNNING|QUEUED|INITIALIZING|CREATED|"")
+                  # keep waiting
+                  ;;
+                *)
+                  echo "ℹ️ Unrecognized state: $STATE (continuing to wait)"
+                  ;;
+              esac
+
+              if [ "$(date +%s)" -gt "$end" ]; then
+                echo "⏰ Timeout waiting for update $update_id"
+                return 1
+              fi
+              sleep "$POLL_SECS"
+            done
+          }
+
+          if [ "${STOP_ACTIVE_FIRST:-false}" = "true" ]; then
+            echo "Stopping any active update first…"
+            set +e
+            databricks pipelines stop "$PIPELINE_ID"
+            set -e
+            # wait until no active update remains
+            while true; do
+              ACTIVE=$(list_active_update_id || true)
+              if [ -z "${ACTIVE:-}" ]; then
+                echo "No active update remains."
+                break
+              fi
+              echo "Waiting for active update $ACTIVE to stop…"
+              sleep 20
+            done
           fi
+
+          # If an active update exists, wait on it; else start a new one.
+          ACTIVE_ID=$(list_active_update_id || true)
+          if [ -n "${ACTIVE_ID:-}" ]; then
+            echo "ℹ️ Active update already running: $ACTIVE_ID — will wait for it."
+            if ! wait_for_update "$ACTIVE_ID"; then
+              echo "Existing active update failed or timed out."
+              exit 1
+            fi
+          else
+            echo "▶️ No active update. Starting a new one…"
+            set +e
+            START_JSON=$(databricks pipelines start-update "$PIPELINE_ID" --output json 2>&1)
+            START_RC=$?
+            set -e
+
+            if [ $START_RC -eq 0 ]; then
+              UPDATE_ID=$(echo "$START_JSON" | jq -r '.update_id')
+              if [ -z "$UPDATE_ID" ] || [ "$UPDATE_ID" = "null" ]; then
+                echo "❗ Started but couldn't parse update_id. Raw:"
+                echo "$START_JSON"
+                exit 1
+              fi
+              echo "Started update: $UPDATE_ID"
+              if ! wait_for_update "$UPDATE_ID"; then
+                echo "New update failed or timed out."
+                exit 1
+              fi
+            else
+              echo "Start failed (likely due to an active update). Raw:"
+              echo "$START_JSON"
+
+              # Fallback: detect & wait for the active one
+              ACTIVE_ID=$(list_active_update_id || true)
+              if [ -z "${ACTIVE_ID:-}" ]; then
+                echo "❌ Could not find an active update to wait on. Exiting."
+                exit 1
+              fi
+              echo "ℹ️ Will wait on existing active update: $ACTIVE_ID"
+              if ! wait_for_update "$ACTIVE_ID"; then
+                echo "Existing active update failed or timed out."
+                exit 1
+              fi
+            fi
+          fi
+
+      - name: On failure, dump recent pipeline events
+        if: failure()
+        run: |
+          set -euo pipefail
+          echo "Fetching recent pipeline events for diagnostics…"
+          databricks pipelines list-pipeline-events "$PIPELINE_ID" --max-results 200 --output json \
+            | jq -r '.events[] | [.timestamp, .event_type, (.message // ""), (.origin | tostring)] | @tsv' || true
