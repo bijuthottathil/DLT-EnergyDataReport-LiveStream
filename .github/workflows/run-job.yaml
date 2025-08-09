@@ -15,9 +15,9 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
           databricks version
 
-      - name: Start DLT Pipeline
+      - name: Start DLT Pipeline (CLI v1.x)
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: |
-          databricks pipelines start --pipeline-id "${{ secrets.DLT_PIPELINE_ID }}"
+          databricks pipelines start-update "${{ secrets.DLT_PIPELINE_ID }}"
