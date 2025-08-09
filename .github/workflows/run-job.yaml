@@ -21,3 +21,23 @@ jobs:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: |
           databricks pipelines start-update "${{ secrets.DLT_PIPELINE_ID }}"
+      - name: Wait for DLT Pipeline to Finish
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          PIPELINE_ID="${{ secrets.DLT_PIPELINE_ID }}"
+          UPDATE_ID=$(databricks pipelines start-update "$PIPELINE_ID" --output json | jq -r '.update_id')
+          echo "Started Update ID: $UPDATE_ID"
+
+          STATUS="RUNNING"
+          while [ "$STATUS" == "RUNNING" ] || [ "$STATUS" == "PENDING" ]; do
+            sleep 60
+            STATUS=$(databricks pipelines get-update "$PIPELINE_ID" "$UPDATE_ID" --output json | jq -r '.update.state')
+            echo "Current status: $STATUS"
+          done
+
+          if [ "$STATUS" != "COMPLETED" ]; then
+            echo "Pipeline failed with status: $STATUS"
+            exit 1
+          fi
